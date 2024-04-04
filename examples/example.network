@@ -1,0 +1,8 @@
+# Example Network
+# INPUT NUM_NEURONS
+IN 2
+# LAYER_ACTIVATION_FUNC NUM_NEURONS 
+leakyrelu 12
+leakyrelu 4
+# Output layer is just the last defined layer
+sigmoid 1
