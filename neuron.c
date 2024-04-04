@@ -49,16 +49,10 @@ void genWeights(int num_weights, double *arr)
 {
 	double sum = 0;
 
-	for (int i = 0; i < num_weights; i++)
-	{
-		arr[i] = rand() % 100;
-		sum += arr[i];
-	}
+	double scale = 1.0 / sqrt(num_weights);
 
 	for (int i = 0; i < num_weights; i++)
-	{
-		arr[i] /= sum;
-	}
+		arr[i] = scale * (rand() % 10000 - 5000) / 10000;
 }
 
 int allocInputs(Neuron *neuron, int number_inputs)
@@ -90,7 +84,7 @@ Neuron *createNeuron(int num_inputs, Layer *prev_layer, NType type, Activator ac
 	neuron->activator = activator;
 	neuron->prev_layer = prev_layer;
 	neuron->type = type;
-	neuron->bias = 0;
+	neuron->bias = 0.001;
 }
 
 void freeNeuron(Neuron *n)
@@ -315,7 +309,7 @@ void applyGradient(Layer *layer, double learn_rate)
 	{
 		for (int j = 0; j < layer->neurons[i]->numberInputs; j++)
 			layer->neurons[i]->input_weights[j] -= layer->costGradientWeights[i][j] * learn_rate;
-		layer->costGradientBias[i] -= layer->costGradientBias[i] * learn_rate;
+		layer->neurons[i]->bias -= layer->costGradientBias[i] * learn_rate;
 	}
 }
 
@@ -457,39 +451,55 @@ void main()
 	Activator sig = {.ActivationFunction = sigmoid, .DerivatedFunction = sigmoidDerivative};
 	Activator relu = {.ActivationFunction = ReLU, .DerivatedFunction = ReLUDerivative};
 
-	int data_points = 10000;
+	int data_points = 32;
 	DataPoint *data = (DataPoint *)malloc(sizeof(DataPoint) * data_points);
 
 	for (int i = 0; i < data_points; i++)
 	{
-		data[i].input = (double *)malloc(sizeof(double));
+		data[i].input = (double *)malloc(sizeof(double) * 2);
 		data[i].expectation = (double *)malloc(sizeof(double) * 2);
 
-		int roll = rand() % 2;
-		data[i].input[0] = roll;
-		data[i].expectation[0] = roll % 2 == 0 ? 1.0 : 0.0;
-		data[i].expectation[1] = roll % 2 == 0 ? 0.0 : 1.0;
+		int cp = rand() % 4;
+
+		data[i].input[0] = cp / 2;
+		data[i].input[1] = cp % 2;
+		data[i].expectation[0] = (cp % 2) == (cp / 2) ? 0.0 : 1.0;
 	}
 
-	Network *network = createNetwork(3, 1, identical, 4, sig, 2, relu);
+	Network *network = createNetwork(4, 2, identical, 4, relu, 2, relu, 1, relu);
 
-	for (int epoch = 0; epoch < 500; epoch++)
+	int epoch = 0;
+	double last_cost = 1.0;
+	int same_cost = 0;
+	while(last_cost > 0.00001 && same_cost < 100)
 	{
-		learn(network, data_points - 1, data, 0.5);
+		learn(network, data_points, data, 0.005);
 		printf("EPOCH %d\n", epoch);
-		printNetworkCost(network, data, data_points - 1);
+		printNetworkCost(network, data, data_points);
+		epoch++;
+		if (last_cost == getNetworkCost(network, data, data_points)) {
+			same_cost++;
+		} else {
+			same_cost = 0;
+		}
+		last_cost = getNetworkCost(network, data, data_points);
 	}
 
-	runNetwork(network, data[data_points - 1]);
-	printf("Input: %lf\n", data[data_points - 1].input[0]);
-	printf("\t\tEVEN\t ODD\n");
-	printNetworkOutputs(network);
 
+	for (int i = 0; i < data_points; i++)
+	{
+		runNetwork(network, data[i]);
+		printf("Input: x=%lf y=%lf\n", data[i].input[0], data[i].input[1]);
+		printf("\t\tXOR\n");
+		printNetworkOutputs(network);
+	}
+
+/*
 	runNetwork(network, data[data_points - 542]);
-	printf("Input: %lf\n", data[data_points - 542].input[0]);
-	printf("\t\tEVEN\t ODD\n");
+	printf("Input: x=%lf y=%lf\n", data[data_points - 542].input[0], data[data_points - 542].input[1]);
+	printf("\t\tINSIDE\t OUTSIDE CIRCLE\n");
 	printNetworkOutputs(network);
-
+*/
 	printNetworkCost(network, data, data_points - 1);
 
 	for (int i = 0; i < data_points; i++)
