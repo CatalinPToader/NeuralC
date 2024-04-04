@@ -1,131 +1,118 @@
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <time.h>
+#include "neuron.h"
 
-#define EULER_NUMBER 2.71828
-
-
-typedef enum neuron_type NType;
-typedef struct neuron Neuron;
-typedef struct layer Layer;
-typedef struct network Network;
-
-enum neuron_type{Input, Hidden, Output};
-
-struct neuron {
-	NType type;
-	int numberInputs;
-	double *input_weights;
-	Layer *prev_layer;
-	double (*ActivationFunction)(double inputValue);
-	double inputValue;
-	double activatedValue;
-	double bias;
-};
-
-struct layer {
-	int num_nodes;
-	double *costGradientBias;
-	double **costGradientWeights;
-	Neuron** neurons;
-	double *costActivationNode;
-};
-
-struct network {
-	int numberLayers;
-	int *layerSizes;
-	Layer** layers;
-};
-
-double ID(double input) {
+double ID(double input)
+{
 	return input;
 }
 
-double ReLU(double input) {
+double ReLU(double input)
+{
 	return input > 0 ? input : 0;
 }
 
-double sigmoid(double input) {
-    return (1 / (1 + pow(EULER_NUMBER, -input)));
+double ReLUDerivative(double input)
+{
+	return input > 0 ? 1 : 0;
 }
 
-void activateNeuron(Neuron *neuron) {
-	neuron->activatedValue = neuron->ActivationFunction(neuron->inputValue);
+double sigmoid(double input)
+{
+	return (1 / (1 + pow(EULER_NUMBER, -input)));
 }
 
-void calculateInputValue(Neuron *neuron) {
+double sigmoidDerivative(double input)
+{
+	return sigmoid(input) * (1 - sigmoid(input));
+}
+
+void activateNeuron(Neuron *neuron)
+{
+	neuron->activatedValue = neuron->activator.ActivationFunction(neuron->inputValue);
+}
+
+void calculateInputValue(Neuron *neuron)
+{
 	if (neuron->type == Input)
 		return;
 
 	double sum = neuron->bias;
 
-	for(int i = 0; i < neuron->numberInputs; i++) {
+	for (int i = 0; i < neuron->numberInputs; i++)
+	{
 		sum += neuron->prev_layer->neurons[i]->activatedValue * neuron->input_weights[i];
 	}
 
 	neuron->inputValue = sum;
 }
 
-void genWeights(int num_weights, double *arr) {
+void genWeights(int num_weights, double *arr)
+{
 	double sum = 0;
 
-	for(int i = 0; i < num_weights; i++) {
+	for (int i = 0; i < num_weights; i++)
+	{
 		arr[i] = rand() % 100;
 		sum += arr[i];
 	}
 
-	for(int i = 0; i < num_weights; i++) {
+	for (int i = 0; i < num_weights; i++)
+	{
 		arr[i] /= sum;
 	}
 }
 
-int allocInputs(Neuron *neuron, int number_inputs) {
+int allocInputs(Neuron *neuron, int number_inputs)
+{
 	neuron->numberInputs = number_inputs;
 
 	neuron->input_weights = (double *)malloc(sizeof(double) * number_inputs);
-	if (!neuron->input_weights) {
+	if (!neuron->input_weights)
+	{
 		return 1;
 	}
 
 	return 0;
 }
 
-Neuron* createNeuron(int num_inputs, Layer *prev_layer, NType type, double (*ActivationFunction)(double inputValue)) {
+Neuron *createNeuron(int num_inputs, Layer *prev_layer, NType type, Activator activator)
+{
 	Neuron *neuron = (Neuron *)malloc(sizeof(Neuron));
 	if (!neuron)
 		return NULL;
 
-	if (allocInputs(neuron, num_inputs) != 0) {
+	if (allocInputs(neuron, num_inputs) != 0)
+	{
 		free(neuron);
 		return NULL;
 	}
 	genWeights(num_inputs, neuron->input_weights);
 
-	neuron->ActivationFunction = ActivationFunction;
+	neuron->activator = activator;
 	neuron->prev_layer = prev_layer;
 	neuron->type = type;
 	neuron->bias = 0;
 }
 
-void freeNeuron(Neuron *n) {
+void freeNeuron(Neuron *n)
+{
 	free(n->input_weights);
 	free(n);
 }
 
-Layer *createLayer(int num_neurons, int prev_layer_size, Layer *prev_layer, NType type, double (*ActivationFunction)(double inputValue)) {
+Layer *createLayer(int num_neurons, int prev_layer_size, Layer *prev_layer, NType type, Activator activator)
+{
 	Layer *layer = (Layer *)malloc(sizeof(Layer) * num_neurons);
 	if (!layer)
 		return NULL;
 
 	layer->num_nodes = num_neurons;
+	layer->type = type;
 
-	layer->costGradientBias = (double *)malloc(sizeof(double) * num_neurons);
+	layer->costGradientBias = (double *)calloc(num_neurons, sizeof(double));
 	if (!layer->costGradientBias)
 		goto cleanup_layer;
 
-	layer->costActivationNode = (double *)malloc(sizeof(double) * num_neurons);
+	layer->costActivationNode = (double *)calloc(num_neurons, sizeof(double));
 	if (!layer->costActivationNode)
 		goto cleanup_bias;
 
@@ -134,8 +121,9 @@ Layer *createLayer(int num_neurons, int prev_layer_size, Layer *prev_layer, NTyp
 		goto cleanup_activation;
 
 	int i;
-	for(i = 0; i < num_neurons; i++) {
-		layer->costGradientWeights[i] = (double *)malloc(sizeof(double) * prev_layer_size);
+	for (i = 0; i < num_neurons; i++)
+	{
+		layer->costGradientWeights[i] = (double *)calloc(prev_layer_size, sizeof(double));
 
 		if (!layer->costGradientWeights[i])
 			goto cleanup_weights;
@@ -144,10 +132,12 @@ Layer *createLayer(int num_neurons, int prev_layer_size, Layer *prev_layer, NTyp
 	layer->neurons = (Neuron **)malloc(sizeof(Neuron *) * num_neurons);
 	if (!layer->neurons)
 		goto cleanup_weights;
-	
-	for(i = 0; i < num_neurons; i++) {
-		layer->neurons[i] = createNeuron(prev_layer_size, prev_layer, type, ActivationFunction);
-		if (!layer->neurons[i]) {
+
+	for (i = 0; i < num_neurons; i++)
+	{
+		layer->neurons[i] = createNeuron(prev_layer_size, prev_layer, type, activator);
+		if (!layer->neurons[i])
+		{
 			goto cleanup_neurons;
 		}
 	}
@@ -155,12 +145,14 @@ Layer *createLayer(int num_neurons, int prev_layer_size, Layer *prev_layer, NTyp
 	return layer;
 
 cleanup_neurons:
-	for(i--; i >= 0; i--) {
+	for (i--; i >= 0; i--)
+	{
 		freeNeuron(layer->neurons[i]);
 	}
 	free(layer->neurons);
 cleanup_weights:
-	for(i--; i >= 0; i--) {
+	for (i--; i >= 0; i--)
+	{
 		free(layer->costGradientWeights[i]);
 	}
 	free(layer->costGradientWeights);
@@ -174,20 +166,24 @@ cleanup_layer:
 	return NULL;
 }
 
-void freeLayer(Layer *l) {
-	for(int i = 0; i < l->num_nodes; i++) {
+void freeLayer(Layer *l)
+{
+	for (int i = 0; i < l->num_nodes; i++)
+	{
 		freeNeuron(l->neurons[i]);
 	}
 	free(l->neurons);
-	for(int i = 0; i < l->num_nodes; i++) {
+	for (int i = 0; i < l->num_nodes; i++)
+	{
 		free(l->costGradientWeights[i]);
 	}
 	free(l->costGradientWeights);
+	free(l->costActivationNode);
 	free(l->costGradientBias);
 	free(l);
 }
 
-Network* createNetwork(int num_layers, ...)
+Network *createNetwork(int num_layers, ...)
 {
 	int i = 0;
 	Network *network = (Network *)malloc(sizeof(Network));
@@ -196,56 +192,65 @@ Network* createNetwork(int num_layers, ...)
 
 	network->numberLayers = num_layers;
 	network->layerSizes = (int *)malloc(sizeof(int) * num_layers);
-	if (!network->layerSizes) {
+	if (!network->layerSizes)
+	{
 		goto cleanup_network;
 	}
 
 	network->layers = (Layer **)malloc(sizeof(Layer *) * num_layers);
-	if (!network->layers) {
+	if (!network->layers)
+	{
 		goto cleanup_sizes;
 	}
- 
-    // Declaring pointer to the
-    // argument list
-    va_list ptr;
- 
-    // Initializing argument to the
-    // list pointer
-    va_start(ptr, num_layers);
+
+	// Declaring pointer to the
+	// argument list
+	va_list ptr;
+
+	// Initializing argument to the
+	// list pointer
+	va_start(ptr, num_layers);
 	NType type;
- 
-    for (; i < num_layers; i++) {
+
+	for (; i < num_layers; i++)
+	{
 		if (i == 0)
 			type = Input;
 		else if (i != num_layers - 1)
 			type = Hidden;
 		else
 			type = Output;
-		
-        // Accessing current variable
-        // and pointing to next one
-        int layer_size = va_arg(ptr, int);
 
-		if (i == 0) {
-			network->layers[i] = createLayer(layer_size, 0, NULL, type, ID);
-		} else {
-			network->layers[i] = createLayer(layer_size, network->layerSizes[i-1], network->layers[i-1], type, sigmoid);
+		// Accessing current variable
+		// and pointing to next one
+		int layer_size = va_arg(ptr, int);
+		Activator activator = va_arg(ptr, Activator);
+
+		if (i == 0)
+		{
+			network->layers[i] = createLayer(layer_size, 0, NULL, type, activator);
 		}
-		if (!network->layers[i]) {
+		else
+		{
+			network->layers[i] = createLayer(layer_size, network->layerSizes[i - 1], network->layers[i - 1], type, activator);
+		}
+		if (!network->layers[i])
+		{
 			va_end(ptr);
 			goto cleanup_layers;
 		}
 
 		network->layerSizes[i] = layer_size;
 	}
- 
-    // Ending argument list traversal
-    va_end(ptr);
+
+	// Ending argument list traversal
+	va_end(ptr);
 
 	return network;
 
 cleanup_layers:
-	for(i--; i >= 0; i--) {
+	for (i--; i >= 0; i--)
+	{
 		freeLayer(network->layers[i]);
 	}
 
@@ -254,11 +259,13 @@ cleanup_sizes:
 	free(network->layerSizes);
 cleanup_network:
 	free(network);
-    return NULL;
+	return NULL;
 }
 
-void freeNetwork(Network *n) {
-	for(int i = 0; i < n->numberLayers; i++) {
+void freeNetwork(Network *n)
+{
+	for (int i = 0; i < n->numberLayers; i++)
+	{
 		freeLayer(n->layers[i]);
 	}
 
@@ -267,59 +274,231 @@ void freeNetwork(Network *n) {
 	free(n);
 }
 
-double costDerivative(double expectation, double output) {
-	return 2 * (expectation - output);
+void learn(Network *n, int num_data_points, DataPoint *data, double learn_rate)
+{
+	for (int i = 0; i < num_data_points; i++)
+	{
+		updateAllGradients(n, data[i]);
+	}
+
+	applyAllGradients(n, learn_rate / num_data_points);
+
+	resetAllGradients(n);
 }
 
-double cost(int num_outs, double* expectation, double *outputs) {
+void runNetwork(Network *n, DataPoint input)
+{
+	for (int i = 0; i < n->layerSizes[0]; i++)
+	{
+		n->layers[0]->neurons[i]->inputValue = input.input[i];
+	}
+
+	for (int i = 0; i < n->numberLayers; i++)
+	{
+		for (int j = 0; j < n->layerSizes[i]; j++)
+		{
+			calculateInputValue(n->layers[i]->neurons[j]);
+			activateNeuron(n->layers[i]->neurons[j]);
+		}
+	}
+}
+
+void applyAllGradients(Network *network, double learn_rate)
+{
+	for (int i = network->numberLayers - 1; i > 0; i--)
+		applyGradient(network->layers[i], learn_rate);
+}
+
+void applyGradient(Layer *layer, double learn_rate)
+{
+	for (int i = 0; i < layer->num_nodes; i++)
+	{
+		for (int j = 0; j < layer->neurons[i]->numberInputs; j++)
+			layer->neurons[i]->input_weights[j] -= layer->costGradientWeights[i][j] * learn_rate;
+		layer->costGradientBias[i] -= layer->costGradientBias[i] * learn_rate;
+	}
+}
+
+void updateAllGradients(Network *network, DataPoint data)
+{
+	runNetwork(network, data);
+	for (int i = network->numberLayers - 1; i > 0; i--)
+	{
+		if (i == network->numberLayers - 1)
+			calculateCostActivation(network->layers[i], NULL, data.expectation);
+		else
+			calculateCostActivation(network->layers[i], network->layers[i + 1], data.expectation);
+		calculateGradients(network->layers[i], network->layers[i - 1]);
+	}
+}
+
+void resetAllGradients(Network *network)
+{
+	for (int i = network->numberLayers - 1; i > 0; i--)
+	{
+		Layer *layer = network->layers[i];
+		resetGradients(layer);
+	}
+}
+
+void resetGradients(Layer *layer)
+{
+	for (int i = 0; i < layer->num_nodes; i++)
+	{
+		layer->costGradientBias[i] = 0;
+		for (int j = 0; j < layer->neurons[i]->numberInputs; j++)
+			layer->costGradientWeights[i][j] = 0;
+	}
+}
+
+void calculateGradients(Layer *layer, Layer *prev_layer)
+{
+	for (int i = 0; i < layer->num_nodes; i++)
+	{
+		for (int j = 0; j < layer->neurons[i]->numberInputs; j++)
+			layer->costGradientWeights[i][j] += prev_layer->neurons[j]->activatedValue * layer->costActivationNode[i];
+		layer->costGradientBias[i] += 1 * layer->costActivationNode[i];
+	}
+}
+
+void calculateCostActivation(Layer *layer, Layer *next_layer, double *expectation)
+{
+	if (layer->type == Input)
+		return;
+
+	if (layer->type == Output)
+	{
+		for (int i = 0; i < layer->num_nodes; i++)
+		{
+			Neuron *neuron = layer->neurons[i];
+			double costNode = costDerivative(expectation[i], neuron->activatedValue);
+			layer->costActivationNode[i] = costNode * neuron->activator.DerivatedFunction(neuron->inputValue);
+		}
+	}
+	else
+	{
+		for (int i = 0; i < layer->num_nodes; i++)
+		{
+			Neuron *neuron = layer->neurons[i];
+
+			double costNode = 0;
+			for (int j = 0; j < next_layer->num_nodes; j++)
+			{
+				double weightOut = next_layer->neurons[j]->input_weights[i];
+				costNode += weightOut * next_layer->costActivationNode[j];
+			}
+
+			layer->costActivationNode[i] = costNode * neuron->activator.DerivatedFunction(neuron->inputValue);
+		}
+	}
+}
+
+double costDerivative(double expectation, double output)
+{
+	return output - expectation;
+}
+
+double cost(int num_outs, double *expectation, double *outputs)
+{
 	double cost = 0;
 
-	for(int i = 0; i < num_outs; i++) {
+	for (int i = 0; i < num_outs; i++)
+	{
 		double err = outputs[i] - expectation[i];
 		cost += err * err;
 	}
 
-	return cost;
+	return 0.5 * cost;
 }
 
-void printNetworkOutputs(Network *n) {
+double getNetworkCost(Network *n, DataPoint *data, int num_points) {
+	int num_outs = n->layers[n->numberLayers - 1]->num_nodes;
+	double *output = (double *)malloc(sizeof(double) * num_outs);
+	if (!output)
+		return -1;
+
+	double total_cost = 0;
+	for (int i = 0; i < num_points; i++)
+	{
+		runNetwork(n, data[i]);
+		for (int j = 0; j < num_outs; j++)
+		{
+			output[j] = n->layers[n->numberLayers - 1]->neurons[j]->activatedValue;
+		}
+
+		total_cost += cost(num_outs, data[i].expectation, output);
+	}
+	free(output);
+
+	return total_cost;
+}
+
+void printNetworkCost(Network *n, DataPoint *data, int num_points)
+{
+	printf("Cost: %lf\n", getNetworkCost(n, data, num_points));
+}
+
+void printNetworkOutputs(Network *n)
+{
 	printf("Network Output: ");
 	int layer = n->numberLayers - 1;
-	for(int i = 0; i < n->layerSizes[layer]; i++) {
+	for (int i = 0; i < n->layerSizes[layer]; i++)
+	{
 		printf("%lf ", n->layers[layer]->neurons[i]->activatedValue);
 	}
 	printf("\n");
 }
 
-void main() {
+void main()
+{
 	srand(time(NULL));
 
-	Network *network = createNetwork(3, 1, 5, 2);
+	Activator identical = {.ActivationFunction = ID, .DerivatedFunction = ID};
+	Activator sig = {.ActivationFunction = sigmoid, .DerivatedFunction = sigmoidDerivative};
+	Activator relu = {.ActivationFunction = ReLU, .DerivatedFunction = ReLUDerivative};
 
+	int data_points = 10000;
+	DataPoint *data = (DataPoint *)malloc(sizeof(DataPoint) * data_points);
 
-	for(int run = 0; run < 6; run++) {
+	for (int i = 0; i < data_points; i++)
+	{
+		data[i].input = (double *)malloc(sizeof(double));
+		data[i].expectation = (double *)malloc(sizeof(double) * 2);
 
-		network->layers[0]->neurons[0]->inputValue = run;
-
-		double expectation[2] = {run % 2, run % 2};
-
-		for(int i = 0; i < network->numberLayers; i++) {
-			for(int j = 0; j < network->layerSizes[i]; j++) {
-				calculateInputValue(network->layers[i]->neurons[j]);
-				activateNeuron(network->layers[i]->neurons[j]);
-			}
-		}
-
-		printNetworkOutputs(network);
-
-		double costs[2] = {0, 0};
-
-		for(int i = 0; i < 2; i++) {
-			costs[i] = network->layers[network->numberLayers - 1]->neurons[i]->activatedValue;
-		}
-
-		printf("Cost: %lf\n", cost(2, expectation, costs));
+		int roll = rand() % 2;
+		data[i].input[0] = roll;
+		data[i].expectation[0] = roll % 2 == 0 ? 1.0 : 0.0;
+		data[i].expectation[1] = roll % 2 == 0 ? 0.0 : 1.0;
 	}
+
+	Network *network = createNetwork(3, 1, identical, 4, sig, 2, relu);
+
+	for (int epoch = 0; epoch < 500; epoch++)
+	{
+		learn(network, data_points - 1, data, 0.5);
+		printf("EPOCH %d\n", epoch);
+		printNetworkCost(network, data, data_points - 1);
+	}
+
+	runNetwork(network, data[data_points - 1]);
+	printf("Input: %lf\n", data[data_points - 1].input[0]);
+	printf("\t\tEVEN\t ODD\n");
+	printNetworkOutputs(network);
+
+	runNetwork(network, data[data_points - 542]);
+	printf("Input: %lf\n", data[data_points - 542].input[0]);
+	printf("\t\tEVEN\t ODD\n");
+	printNetworkOutputs(network);
+
+	printNetworkCost(network, data, data_points - 1);
+
+	for (int i = 0; i < data_points; i++)
+	{
+		free(data[i].input);
+		free(data[i].expectation);
+	}
+
+	free(data);
 
 	freeNetwork(network);
 }
