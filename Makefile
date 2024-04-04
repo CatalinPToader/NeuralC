@@ -1,7 +1,7 @@
 all: neuron
 
 neuron: neuron.c
-	gcc $< -o $@ -lm
+	gcc $< -g -o $@ -lm
 
 .PHONY: clean
 clean:
