@@ -8,7 +8,8 @@ A small personal project aimed at creating neural networks in C to better unders
 ```bash
   git clone https://link-to-project
   cd neural-c
-  make
+  mkdir build && cd build
+  cmake ..
   ./neural examples/example.network
 ```
 
