@@ -2,8 +2,6 @@
 
 void genWeights(int num_weights, double* arr)
 {
-    double sum = 0;
-
     double scale = 1.0 / sqrt(num_weights);
 
     for (int i = 0; i < num_weights; i++)
@@ -16,10 +14,10 @@ int allocInputs(Neuron* neuron, int number_inputs)
 
     neuron->input_weights = (double*)malloc(sizeof(double) * number_inputs);
     if (!neuron->input_weights) {
-        return 1;
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 Neuron* createNeuron(int num_inputs, Layer* prev_layer, NType type, Activator activator)
@@ -28,7 +26,7 @@ Neuron* createNeuron(int num_inputs, Layer* prev_layer, NType type, Activator ac
     if (!neuron)
         return NULL;
 
-    if (allocInputs(neuron, num_inputs) != 0) {
+    if (!allocInputs(neuron, num_inputs)) {
         free(neuron);
         return NULL;
     }
@@ -38,6 +36,8 @@ Neuron* createNeuron(int num_inputs, Layer* prev_layer, NType type, Activator ac
     neuron->prev_layer = prev_layer;
     neuron->type = type;
     neuron->bias = 0.001;
+
+    return neuron;
 }
 
 void freeNeuron(Neuron* n)
@@ -447,30 +447,30 @@ void main()
     Activator identical = { .ActivationFunction = ID, .DerivatedFunction = ID };
     Activator sig = { .ActivationFunction = Sigmoid, .DerivatedFunction = SigmoidDerivative };
     Activator relu = { .ActivationFunction = ReLU, .DerivatedFunction = ReLUDerivative };
-    Activator leakyrelu = { .ActivationFunction = LeakyReLU, .DerivatedFunction = ReLUDerivative };
+    Activator leakyrelu = { .ActivationFunction = LeakyReLU, .DerivatedFunction = LeakyReLUDerivative };
     Activator tanh = { .ActivationFunction = Tanh, .DerivatedFunction = TanhDerivative };
 
-    int data_points = 32;
+    int data_points = 4;
     DataPoint* data = (DataPoint*)malloc(sizeof(DataPoint) * data_points);
 
     for (int i = 0; i < data_points; i++) {
         data[i].input = (double*)malloc(sizeof(double) * 2);
         data[i].expectation = (double*)malloc(sizeof(double) * 2);
 
-        int cp = rand() % 4;
+        int cp = i % 4;
 
         data[i].input[0] = cp / 2;
         data[i].input[1] = cp % 2;
         data[i].expectation[0] = (cp % 2) == (cp / 2) ? 0.0 : 1.0;
     }
 
-    Network* network = createNetwork(4, 2, identical, 4, sig, 2, leakyrelu, 1, relu);
+    Network* network = createNetwork(4, 2, identical, 4, sig, 2, leakyrelu, 1, leakyrelu);
 
     unsigned int epoch = 0;
     double last_cost = 1.0;
     int same_cost = 0;
-    while (last_cost > 0.0000001 && same_cost < 1000000) {
-        double learn_rate = 0.5 * log10(same_cost + 10) / log10(epoch + 10);
+    while (last_cost > 1e-5 && same_cost < 1e6) {
+        double learn_rate = 0.5 * log(same_cost + 10) / log10(epoch + 10);
         learn(network, data_points, data, learn_rate);
         printf("EPOCH %d, LEARN RATE %lf\n", epoch, learn_rate);
         printNetworkCost(network, data, data_points);

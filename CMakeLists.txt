@@ -2,7 +2,7 @@
 
  project(neuron)
 
- set (CMAKE_CXX_FLAGS "-g -Wall")
+ set (CMAKE_C_FLAGS "-g -Wall")
 
  set(SOURCES
     neuron.c
@@ -10,7 +10,7 @@
 
  add_executable(neuron ${SOURCES})
  target_link_libraries(neuron m)
- 
+
  set(SOURCES
     network_config_checker.c
     network_config_helper.c
