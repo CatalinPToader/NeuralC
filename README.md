@@ -11,7 +11,7 @@ cd neural-c
 mkdir build && cd build
 cmake ..
 make
-./neural examples/example.network
+./neuron
 ```
 
  Network checker
@@ -19,3 +19,10 @@ make
 ```bash
 ./network_config_checker examples/example.network
 ```
+
+## TODO:
+- Saving trained networks to file
+- Loading trained networks from files
+- Loading networks from network descriptor files
+- Training checkpoints
+- Interactive mode (load, save, train, cancel training, run without restarting)
