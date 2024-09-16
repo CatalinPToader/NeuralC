@@ -1,13 +1,18 @@
-#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#define EULER_NUMBER 2.71828
-#define PI 3.141592
+#ifndef NET_MATH_HELP_H
+#include "helpers/math_funcs.h"
+#endif
+#ifndef NET_LOAD_H
+#include "helpers/network_loader.h"
+#endif
 
+#ifndef NEURON_TYPES
+#define NEURON_TYPES
 typedef enum neuron_type NType;
 typedef struct neuron Neuron;
 typedef struct layer Layer;
@@ -57,24 +62,19 @@ struct network {
     Layer** layers;
 };
 
+#endif
+
+#ifndef NEURON_FUNCS
+#define NEURON_FUNCS
 void genWeights(int num_weights, double* arr);
 int allocInputs(Neuron* neuron, int number_inputs);
 Neuron* createNeuron(int num_inputs, Layer* prev_layer, NType type, Activator activator);
 void freeNeuron(Neuron* n);
 Layer* createLayer(int num_neurons, int prev_layer_size, Layer* prev_layer, NType type, Activator activator);
 void freeLayer(Layer* l);
-Network* createNetwork(int num_layers, ...);
+Network* createNetwork(int num_layers, int* layersNeuronCounts, Activator* layersActivators);
+Network* va_createNetwork(int num_layers, ...);
 void freeNetwork(Network* n);
-
-double ID(double input);
-double ReLU(double input);
-double ReLUDerivative(double input);
-double LeakyReLU(double input);
-double LeakyReLUDerivative(double input);
-double Sigmoid(double input);
-double SigmoidDerivative(double input);
-double Tanh(double input);
-double TanhDerivative(double input);
 
 void calculateInputValue(Neuron* neuron);
 void activateNeuron(Neuron* neuron);
@@ -97,3 +97,4 @@ double getNetworkCost(Network* n, DataPoint* data, int num_points);
 void printNetworkCost(Network* n, DataPoint* data, int num_points);
 
 void printNetworkOutputs(Network* n);
+#endif

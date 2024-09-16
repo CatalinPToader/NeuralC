@@ -6,6 +6,9 @@
 
  set(SOURCES
     neuron.c
+    helpers/math_funcs.c
+    helpers/network_loader.c
+    helpers/network_config_helper.c
  )
 
  add_executable(neuron ${SOURCES})
@@ -13,7 +16,7 @@
 
  set(SOURCES
     network_config_checker.c
-    network_config_helper.c
+    helpers/network_config_helper.c
  )
 
  add_executable(network_config_checker ${SOURCES})

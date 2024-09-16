@@ -12,6 +12,16 @@ int is_activation_func(char* string)
     return 0;
 }
 
+int get_activation_func_index(char *string)
+{
+    for (int i = 0; known_functions[i] != 0; i++) {
+        if (strcmp(string, known_functions[i]) == 0)
+            return i;
+    }
+
+    return 0;
+}
+
 int string_is_uint(char* string)
 {
     char* endptr = NULL;
@@ -23,6 +33,19 @@ int string_is_uint(char* string)
         return 0;
 
     return 1;
+}
+
+int retrieve_uint(char *string)
+{
+    char* endptr = NULL;
+
+    unsigned int val = strtoul(string, &endptr, 10);
+    if (endptr == string)
+        return 0;
+    if (errno != 0)
+        return 0;
+
+    return val; // Converts to int, not an issue unless 2B input neurons or more
 }
 
 int is_correct_layer_line(char* string)
@@ -42,7 +65,7 @@ int is_correct_layer_line(char* string)
     return 0;
 }
 
-int is_correct_input_line(char* string)
+int process_input_line(char *string, int check)
 {
     char* tok = strtok(string, " ");
 
@@ -53,7 +76,7 @@ int is_correct_input_line(char* string)
     if (strcmp(tok, "IN") == 0) {
         tok = strtok(NULL, " ");
 
-        return string_is_uint(tok);
+        return check ? string_is_uint(tok) : retrieve_uint(tok);
     }
 
     return 0;

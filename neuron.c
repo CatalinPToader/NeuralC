@@ -123,7 +123,65 @@ void freeLayer(Layer* l)
     free(l);
 }
 
-Network* createNetwork(int num_layers, ...)
+Network* createNetwork(int num_layers, int* layersNeuronCounts, Activator* layersActivators)
+{
+    int i = 0;
+    Network* network = (Network*)malloc(sizeof(Network));
+    if (!network)
+        return NULL;
+
+    network->numberLayers = num_layers;
+    network->layerSizes = (int*)malloc(sizeof(int) * num_layers);
+    if (!network->layerSizes) {
+        goto cleanup_network;
+    }
+
+    network->layers = (Layer**)malloc(sizeof(Layer*) * num_layers);
+    if (!network->layers) {
+        goto cleanup_sizes;
+    }
+
+    NType type;
+
+    for (; i < num_layers; i++) {
+        if (i == 0)
+            type = Input;
+        else if (i != num_layers - 1)
+            type = Hidden;
+        else
+            type = Output;
+
+        int layer_size = layersNeuronCounts[i];
+        Activator activator = layersActivators[i];
+
+        if (i == 0) {
+            network->layers[i] = createLayer(layer_size, 0, NULL, type, activator);
+        } else {
+            network->layers[i] = createLayer(layer_size, network->layerSizes[i - 1], network->layers[i - 1], type, activator);
+        }
+        if (!network->layers[i]) {
+            goto cleanup_layers;
+        }
+
+        network->layerSizes[i] = layer_size;
+    }
+
+    return network;
+
+cleanup_layers:
+    for (i--; i >= 0; i--) {
+        freeLayer(network->layers[i]);
+    }
+
+    free(network->layers);
+cleanup_sizes:
+    free(network->layerSizes);
+cleanup_network:
+    free(network);
+    return NULL;
+}
+
+Network* va_createNetwork(int num_layers, ...)
 {
     int i = 0;
     Network* network = (Network*)malloc(sizeof(Network));
@@ -203,56 +261,6 @@ void freeNetwork(Network* n)
     free(n->layers);
     free(n->layerSizes);
     free(n);
-}
-
-double ID(double input)
-{
-    return input;
-}
-
-double ReLU(double input)
-{
-    return input > 0 ? input : 0;
-}
-
-double ReLUDerivative(double input)
-{
-    return input > 0 ? 1 : 0;
-}
-
-double LeakyReLU(double input)
-{
-    return input > 0 ? input : input / 10;
-}
-
-double LeakyReLUDerivative(double input)
-{
-    return input > 0 ? 1 : 0.1;
-}
-
-double cosh(double input)
-{
-    return (pow(EULER_NUMBER, 2 * input) + 1) / (2 * pow(EULER_NUMBER, input));
-}
-
-double Tanh(double input)
-{
-    return (pow(EULER_NUMBER, 2 * input) - 1) / (pow(EULER_NUMBER, 2 * input) + 1);
-}
-
-double TanhDerivative(double input)
-{
-    return 1 / (cosh(input) * cosh(input));
-}
-
-double Sigmoid(double input)
-{
-    return (1 / (1 + pow(EULER_NUMBER, -input)));
-}
-
-double SigmoidDerivative(double input)
-{
-    return Sigmoid(input) * (1 - Sigmoid(input));
 }
 
 void calculateInputValue(Neuron* neuron)
@@ -440,7 +448,10 @@ void save_network(Network* n, char* name, int name_len, unsigned int epoch)
     ptr = fopen(epoch_str, "w");
 }
 
-void main()
+// TODO: Data Loader (create array of size 10, double when full using realloc, read line by line)
+// TODO: Network Loader (use network checker code for inspiration)
+
+int main()
 {
     srand(time(NULL));
 
@@ -464,12 +475,20 @@ void main()
         data[i].expectation[0] = (cp % 2) == (cp / 2) ? 0.0 : 1.0;
     }
 
-    Network* network = createNetwork(4, 2, identical, 4, sig, 2, leakyrelu, 1, leakyrelu);
+    //Network* network = va_createNetwork(4, 2, identical, 4, sig, 2, leakyrelu, 1, leakyrelu);
+
+    FILE* network_f = fopen("../examples/example.network", "r+");
+    if (network_f == NULL) {
+        perror("File handling error: ");
+        return -1;
+    }
+
+    Network* network = load(network_f);
 
     unsigned int epoch = 0;
     double last_cost = 1.0;
     int same_cost = 0;
-    while (last_cost > 1e-5 && same_cost < 1e6) {
+    while (last_cost > 1e-6 && same_cost < 1e6) {
         double learn_rate = 0.5 * log(same_cost + 10) / log10(epoch + 10);
         learn(network, data_points, data, learn_rate);
         printf("EPOCH %d, LEARN RATE %lf\n", epoch, learn_rate);

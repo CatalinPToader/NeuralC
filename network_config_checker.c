@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "network_config_helper.h"
+#include "helpers/network_config_helper.h"
 
 #define BUFSZ 256
 
@@ -15,6 +15,8 @@ int main(int argc, char** argv)
         perror("File handling error: ");
         return -1;
     }
+
+    int check_mode = 1;
 
     char buffer[BUFSZ] = { 0 };
     int line_net_num = 0;
@@ -44,8 +46,8 @@ int main(int argc, char** argv)
             return -1;
         }
 
-        if (line_net_num == 0) {
-            if (!is_correct_input_line(buffer)) {
+        if (line_net_num == 0) { 
+            if (!process_input_line(buffer, check_mode)) {
                 printf("%s:%d expected input neurons, format: IN <num_neurons>!\n", argv[1], line_num);
                 return -1;
             }
